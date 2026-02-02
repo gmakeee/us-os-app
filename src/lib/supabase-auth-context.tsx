@@ -118,6 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [supabase]);
 
+    const refreshUser = useCallback(async () => {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+            await fetchUserData(data.session.user.id, data.session.user.email);
+        }
+    }, [supabase, fetchUserData]);
+
+
     useEffect(() => {
         const initAuth = async () => {
             const { data } = await supabase.auth.getSession();
@@ -175,7 +183,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => {
             supabase.removeChannel(channel);
         };
+
     }, [partner?.id, supabase]);
+
+    // Realtime user profile updates (e.g. when linked by partner)
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const channel = supabase
+            .channel('user-profile-updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${user.id}`,
+                },
+                () => {
+                    refreshUser();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, supabase, refreshUser]);
 
     const login = async (email: string, password: string) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -243,11 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const refreshUser = async () => {
-        if (session?.user) {
-            await fetchUserData(session.user.id, session.user.email);
-        }
-    };
 
     return (
         <AuthContext.Provider
