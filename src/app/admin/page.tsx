@@ -26,12 +26,13 @@ import {
     LogIn
 } from 'lucide-react';
 
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_PASSWORD = 'Solovka64';
 
 export default function AdminPage() {
     const { user, login, refreshUser } = useAuth();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
+    const [showHint, setShowHint] = useState(false);
     const [families, setFamilies] = useState<Family[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [newUserEmail, setNewUserEmail] = useState('');
@@ -125,8 +126,11 @@ export default function AdminPage() {
                         </button>
                     </form>
 
-                    <p className="text-xs text-center text-[var(--text-muted)] mt-4">
-                        Hint: admin123
+                    <p
+                        onClick={() => setShowHint(!showHint)}
+                        className="text-xs text-center text-[var(--text-muted)] mt-4 cursor-pointer hover:text-[var(--accent-violet)] transition-colors"
+                    >
+                        {showHint ? 'Hint: Solovka64' : 'Show Hint'}
                     </p>
                 </div>
             </div>
