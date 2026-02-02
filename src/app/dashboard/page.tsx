@@ -110,7 +110,7 @@ export default function DashboardPage() {
             const { data: family, error: findError } = await supabase
                 .from('families')
                 .select('id')
-                .eq('invite_code', partnerCode.trim().toUpperCase())
+                .ilike('invite_code', partnerCode.trim())
                 .single();
 
             if (findError || !family) throw new Error('Invalid invite code');

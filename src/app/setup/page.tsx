@@ -68,7 +68,7 @@ export default function SetupPage() {
             const { data: family, error: findError } = await supabase
                 .from('families')
                 .select('id')
-                .eq('invite_code', inviteCode.toUpperCase().trim())
+                .ilike('invite_code', inviteCode.trim())
                 .single();
 
             if (findError || !family) {
