@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/supabase-auth-context';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Heart, Users, Copy, Check, ArrowRight, UserPlus, Home, LogOut } from 'lucide-react';
+import { Heart, Users, Copy, Check, ArrowRight, UserPlus, Home, LogOut, Clock } from 'lucide-react';
 
 export default function SetupPage() {
     const { user, logout, refreshUser } = useAuth();
@@ -15,14 +15,16 @@ export default function SetupPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [requestSent, setRequestSent] = useState(false);
 
     const supabase = getSupabaseClient();
 
-    // If user already has a family, redirect to dashboard
-    if (user?.familyId) {
-        router.push('/dashboard');
-        return null;
-    }
+    // If user gets approved (has familyId), redirect to dashboard
+    useEffect(() => {
+        if (user?.familyId) {
+            router.push('/dashboard');
+        }
+    }, [user?.familyId, router]);
 
     const handleCreateFamily = async () => {
         if (!user) return;
@@ -64,7 +66,7 @@ export default function SetupPage() {
         setError('');
 
         try {
-            // Find family by invite code
+            // Find family by invite code (case-insensitive)
             const { data: family, error: findError } = await supabase
                 .from('families')
                 .select('id')
@@ -77,18 +79,32 @@ export default function SetupPage() {
                 return;
             }
 
-            // Update user's family_id
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ family_id: family.id })
-                .eq('id', user.id);
+            // check if request already exists
+            const { data: existing } = await supabase
+                .from('family_requests')
+                .select('*')
+                .eq('family_id', family.id)
+                .eq('user_id', user.id)
+                .single();
 
-            if (updateError) throw updateError;
+            if (existing) {
+                setRequestSent(true);
+                return;
+            }
 
-            await refreshUser();
-            router.push('/dashboard');
+            // Create connection request instead of joining directly
+            const { error: reqError } = await supabase
+                .from('family_requests')
+                .insert({
+                    family_id: family.id,
+                    user_id: user.id
+                });
+
+            if (reqError) throw reqError;
+
+            setRequestSent(true);
         } catch (err) {
-            setError('Failed to join family. Please try again.');
+            setError('Failed to send join request. Please try again.');
             console.error(err);
         } finally {
             setLoading(false);
@@ -109,6 +125,40 @@ export default function SetupPage() {
     const goToDashboard = () => {
         router.push('/dashboard');
     };
+
+    if (requestSent) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-lavender)]">
+                <div className="w-full max-w-md card text-center">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-orange-100 flex items-center justify-center mb-6 animate-pulse">
+                        <Clock className="w-10 h-10 text-orange-500" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2">Request Sent!</h2>
+                    <p className="text-[var(--text-muted)] mb-8">
+                        We've sent a request to join the family. <br />
+                        Please ask your partner to open their app and <b>approve</b> the request.
+                    </p>
+                    <div className="bg-orange-50 p-4 rounded-xl mb-6">
+                        <p className="text-sm text-orange-800">
+                            Once approved, this screen will automatically refresh and take you to the dashboard.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setRequestSent(false)}
+                        className="btn btn-outline w-full mb-2"
+                    >
+                        Cancel / Go Back
+                    </button>
+                    <button
+                        onClick={handleLogout}
+                        className="text-sm text-[var(--text-muted)] hover:underline"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-lavender)]">
@@ -256,7 +306,7 @@ export default function SetupPage() {
                             disabled={loading || inviteCode.length < 4}
                             className="btn btn-primary w-full"
                         >
-                            {loading ? 'Joining...' : 'Join Family'}
+                            {loading ? 'Sending Request...' : 'Send Request'}
                             <ArrowRight className="w-5 h-5" />
                         </button>
                     </div>
