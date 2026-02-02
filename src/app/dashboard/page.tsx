@@ -224,6 +224,66 @@ export default function DashboardPage() {
         }
     };
 
+    const handleSendTimeout = async () => {
+        if (!partner) return;
+
+        try {
+            const { error } = await supabase
+                .from('notifications')
+                .insert({
+                    sender_id: user?.id,
+                    receiver_id: partner.id,
+                    type: 'timeout',
+                    content: JSON.stringify({ duration: timeoutMinutes }),
+                });
+
+            if (error) throw error;
+            setTimeoutActive(true);
+        } catch (err) {
+            console.error('Failed to send timeout:', err);
+            alert('Failed to send timeout request');
+        }
+    };
+
+    // Realtime Notifications
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel('notifications')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `receiver_id=eq.${user.id}`,
+                },
+                (payload: any) => {
+                    console.log('New notification:', payload);
+                    if (payload.new.type === 'timeout') {
+                        const content = JSON.parse(payload.new.content || '{}');
+                        setIncomingTimeout({
+                            active: true,
+                            duration: content.duration || 20,
+                            senderName: partner?.displayName || 'Partner'
+                        });
+                        // Play sound or vibrate here if possible
+                        if (navigator.vibrate) navigator.vibrate(200);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, partner]);
+
+    // State for incoming timeout modal
+    const [incomingTimeout, setIncomingTimeout] = useState<{ active: boolean, duration: number, senderName: string } | null>(null);
+
+
     return (
         <div className="page-container">
             {/* Header */}
@@ -452,42 +512,36 @@ export default function DashboardPage() {
                 </section>
             )}
 
-            {/* Timeout FAB */}
-            <button
-                onClick={() => setShowTimeout(true)}
-                className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-blue-500 text-white shadow-lg flex items-center justify-center z-40"
-                title="Need a break?"
-            >
-                <PauseCircle className="w-7 h-7" />
-            </button>
-
-            {/* Timeout Modal */}
+            {/* Timeout Modal (Sender) */}
             {showTimeout && (
-                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setShowTimeout(false)}>
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-md slide-up" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={() => setShowTimeout(false)}>
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl scale-100" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-xl">⏸️ Timeout</h3>
-                            <button onClick={() => setShowTimeout(false)}>
+                            <h3 className="font-bold text-xl flex items-center gap-2">
+                                <PauseCircle className="text-blue-500" />
+                                Timeout
+                            </h3>
+                            <button onClick={() => setShowTimeout(false)} className="p-2 hover:bg-gray-100 rounded-full">
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
 
                         {!timeoutActive ? (
                             <>
-                                <p className="text-sm text-[var(--text-muted)] mb-4">
-                                    Need a break to cool down? Send a timeout request to your partner.
+                                <p className="text-sm text-[var(--text-muted)] mb-6">
+                                    Need a break? Send a request to cool down.
                                 </p>
 
                                 <div className="mb-6">
-                                    <label className="text-sm font-medium mb-2 block">How long do you need?</label>
-                                    <div className="flex gap-2">
+                                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase mb-3 block">Duration</label>
+                                    <div className="grid grid-cols-4 gap-2">
                                         {[10, 15, 20, 30].map((mins) => (
                                             <button
                                                 key={mins}
                                                 onClick={() => setTimeoutMinutes(mins)}
-                                                className={`flex-1 py-3 rounded-xl font-medium ${timeoutMinutes === mins
-                                                    ? 'bg-[var(--accent-violet)] text-white'
-                                                    : 'bg-[var(--bg-soft)]'
+                                                className={`py-3 rounded-xl font-bold text-sm transition-all ${timeoutMinutes === mins
+                                                    ? 'bg-blue-500 text-white shadow-lg scale-105'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 {mins}m
@@ -497,22 +551,22 @@ export default function DashboardPage() {
                                 </div>
 
                                 <button
-                                    onClick={() => setTimeoutActive(true)}
-                                    className="btn btn-primary w-full mb-6"
+                                    onClick={handleSendTimeout}
+                                    className="btn w-full bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2"
                                 >
                                     <PauseCircle className="w-5 h-5" />
-                                    Send Timeout Request
+                                    Start Timeout
                                 </button>
 
-                                <div className="bg-blue-50 rounded-xl p-4">
-                                    <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
                                         <MessageCircle className="w-4 h-4" />
                                         Fair Fighting Rules
                                     </h4>
                                     <ul className="space-y-2">
-                                        {FAIR_FIGHTING_RULES.map((rule, i) => (
-                                            <li key={i} className="text-sm text-blue-800 flex items-start gap-2">
-                                                <span className="text-blue-400">•</span>
+                                        {FAIR_FIGHTING_RULES.slice(0, 3).map((rule, i) => (
+                                            <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                                                <span className="text-blue-400 mt-0.5">•</span>
                                                 {rule}
                                             </li>
                                         ))}
@@ -521,19 +575,20 @@ export default function DashboardPage() {
                             </>
                         ) : (
                             <div className="text-center py-8">
-                                <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                                    <Clock className="w-12 h-12 text-blue-500" />
+                                <div className="w-24 h-24 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-6 animate-pulse">
+                                    <Clock className="w-10 h-10 text-blue-500" />
                                 </div>
-                                <h4 className="font-semibold text-xl mb-2">Timeout Active</h4>
-                                <p className="text-[var(--text-muted)] mb-4">
-                                    Take {timeoutMinutes} minutes to breathe and reflect.
+                                <h4 className="font-bold text-xl mb-2">Timeout Active</h4>
+                                <p className="text-slate-500 mb-6">
+                                    Take {timeoutMinutes} minutes to breathe.
                                 </p>
-                                <p className="text-sm">
-                                    {partner?.displayName || 'Your partner'} has been notified.
-                                </p>
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    Partner Notified
+                                </div>
                                 <button
                                     onClick={() => { setTimeoutActive(false); setShowTimeout(false); }}
-                                    className="btn btn-secondary mt-6"
+                                    className="btn btn-secondary w-full mt-8"
                                 >
                                     End Timeout
                                 </button>
@@ -543,7 +598,40 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            <BottomNav />
+            {/* Incoming Timeout Modal (Receiver) */}
+            {incomingTimeout && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-6 animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+
+                        <div className="w-20 h-20 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-6">
+                            <PauseCircle className="w-10 h-10 text-blue-600" />
+                        </div>
+
+                        <h3 className="text-2xl font-bold mb-2">Timeout Requested</h3>
+                        <p className="text-lg text-slate-600 mb-8">
+                            <span className="font-semibold text-slate-900">{incomingTimeout.senderName}</span> needs
+                            <span className="font-bold text-blue-600 mx-1">{incomingTimeout.duration} minutes</span>
+                            to cool down.
+                        </p>
+
+                        <div className="bg-slate-50 rounded-xl p-4 mb-8 text-left">
+                            <p className="text-sm text-slate-500 italic">
+                                "It's okay to take a break. We can talk again when we're both calm."
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => setIncomingTimeout(null)}
+                            className="btn btn-primary w-full py-4 text-lg"
+                        >
+                            Understood 👍
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <BottomNav onTimeout={() => setShowTimeout(true)} />
         </div>
     );
 }

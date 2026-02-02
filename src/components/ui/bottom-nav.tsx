@@ -12,7 +12,11 @@ const navItems = [
     { href: '/life', icon: Wallet, label: 'Life' },
 ];
 
-export function BottomNav() {
+interface BottomNavProps {
+    onTimeout?: () => void;
+}
+
+export function BottomNav({ onTimeout }: BottomNavProps) {
     const pathname = usePathname();
 
     return (
@@ -32,6 +36,19 @@ export function BottomNav() {
                     </Link>
                 );
             })}
+
+            {onTimeout && (
+                <button
+                    onClick={onTimeout}
+                    className="nav-item text-blue-500"
+                >
+                    <div className="w-5 h-5 flex items-center justify-center rounded-full border-2 border-current">
+                        <span className="block w-[2px] h-2 bg-current mr-[1px]"></span>
+                        <span className="block w-[2px] h-2 bg-current ml-[1px]"></span>
+                    </div>
+                    <span>Pause</span>
+                </button>
+            )}
         </nav>
     );
 }
