@@ -98,12 +98,13 @@ export default function DashboardPage() {
                     >
                         <Settings className="w-5 h-5 text-[var(--text-muted)]" />
                     </Link>
-                    <div
-                        className="avatar avatar-yellow"
+                    <Link
+                        href="/profile"
+                        className="avatar avatar-yellow transition-transform hover:scale-105 active:scale-95 cursor-pointer"
                         style={{ background: user.avatarColor }}
                     >
                         {user.displayName[0]}
-                    </div>
+                    </Link>
                 </div>
             </div>
 
