@@ -32,7 +32,7 @@ export default function DashboardPage() {
     // Family Logic State
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [incomingRequests, setIncomingRequests] = useState<FamilyRequest[]>([]);
-    const [sentRequest, setSentRequest] = useState<boolean>(false);
+    const [sentRequest, setSentRequest] = useState<FamilyRequest | null>(null);
     const [partnerCode, setPartnerCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -52,45 +52,52 @@ export default function DashboardPage() {
 
         // 2. Check for incoming requests (if I am in a family)
         const loadIncomingRequests = async () => {
-            const { data } = await supabase
+            console.log('Checking for incoming requests...', user.familyId);
+            const { data, error } = await supabase
                 .from('family_requests')
                 .select('*')
                 .eq('family_id', user.familyId!)
                 .eq('status', 'pending');
 
+            console.log('Incoming requests result:', { data, error });
             if (data) setIncomingRequests(data as FamilyRequest[]);
         };
 
-        // 3. Check if I have sent a request (if I am waiting)
-        const checkSentRequests = async () => {
+        // 3. Check if I have sent a request
+        const checkSentRequest = async () => {
             const { data } = await supabase
                 .from('family_requests')
                 .select('*')
                 .eq('user_id', user.id)
-                .eq('status', 'pending');
+                .eq('status', 'pending')
+                .maybeSingle();
 
-            if (data && data.length > 0) setSentRequest(true);
+            if (data) setSentRequest(data as FamilyRequest);
         };
 
         loadFamilyInfo();
         loadIncomingRequests();
-        checkSentRequests();
+        checkSentRequest();
 
-        // 4. Realtime Subscription for Requests
+        // Subscribe to changes
         const channel = supabase
-            .channel('family_requests_changes')
+            .channel('family-requests')
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'family_requests'
+                    table: 'family_requests',
+                    filter: `family_id=eq.${user.familyId}`,
                 },
                 (payload: any) => {
-                    // Refresh requests on any change
-                    loadIncomingRequests();
-                    checkSentRequests();
-                    refreshUser(); // In case I was approved and moved
+                    console.log('Realtime family request update:', payload);
+                    if (payload.eventType === 'INSERT') {
+                        setIncomingRequests(prev => [...prev, payload.new as FamilyRequest]);
+                    } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+                        // Reload to be safe
+                        loadIncomingRequests();
+                    }
                 }
             )
             .subscribe();

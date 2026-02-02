@@ -16,11 +16,18 @@ export default function AuthPage() {
     const [success, setSuccess] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Redirect if already logged in
+    // Redirect logic:
+    // 1. If user is loaded
+    // 2. If user has familyId -> Dashboard
+    // 3. If user has NO familyId -> Setup
     useEffect(() => {
         if (user && !loading) {
             console.log('User logged in, redirecting...', user);
-            router.push(user.familyId ? '/dashboard' : '/setup');
+            if (user.familyId) {
+                router.push('/dashboard');
+            } else {
+                router.push('/setup');
+            }
         }
     }, [user, loading, router]);
 

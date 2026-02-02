@@ -22,6 +22,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cache keys
+const CACHE_KEYS = {
+    USER: 'us_os_cache_user',
+    PARTNER: 'us_os_cache_partner',
+    USER_MOOD: 'us_os_cache_user_mood',
+    PARTNER_MOOD: 'us_os_cache_partner_mood',
+};
+
 // Helper to convert snake_case to camelCase
 function toUser(row: Record<string, unknown> | null): User | null {
     if (!row) return null;
@@ -50,14 +58,61 @@ function toMoodLog(row: Record<string, unknown> | null): MoodLog | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    // Initialize state from localStorage if available
     const [session, setSession] = useState<Session | null>(null);
-    const [user, setUser] = useState<User | null>(null);
-    const [partner, setPartner] = useState<User | null>(null);
-    const [userMood, setUserMood] = useState<MoodLog | null>(null);
-    const [partnerMood, setPartnerMood] = useState<MoodLog | null>(null);
-    const [loading, setLoading] = useState(true);
+
+    const [user, setUser] = useState<User | null>(() => {
+        if (typeof window === 'undefined') return null;
+        const cached = localStorage.getItem(CACHE_KEYS.USER);
+        return cached ? JSON.parse(cached) : null;
+    });
+
+    const [partner, setPartner] = useState<User | null>(() => {
+        if (typeof window === 'undefined') return null;
+        const cached = localStorage.getItem(CACHE_KEYS.PARTNER);
+        return cached ? JSON.parse(cached) : null;
+    });
+
+    const [userMood, setUserMood] = useState<MoodLog | null>(() => {
+        if (typeof window === 'undefined') return null;
+        const cached = localStorage.getItem(CACHE_KEYS.USER_MOOD);
+        return cached ? JSON.parse(cached) : null;
+    });
+
+    const [partnerMood, setPartnerMood] = useState<MoodLog | null>(() => {
+        if (typeof window === 'undefined') return null;
+        const cached = localStorage.getItem(CACHE_KEYS.PARTNER_MOOD);
+        return cached ? JSON.parse(cached) : null;
+    });
+
+    // If we have a cached user, we are not "loading" strictly speaking, but still refetching.
+    // However, to prevent flicker, we can start with loading=false if we have a user.
+    // But we need to verify session validity. Supabase client usually handles this.
+    const [loading, setLoading] = useState(!user);
 
     const supabase = getSupabaseClient();
+
+    // Cache updaters
+    useEffect(() => {
+        if (user) localStorage.setItem(CACHE_KEYS.USER, JSON.stringify(user));
+        else localStorage.removeItem(CACHE_KEYS.USER);
+    }, [user]);
+
+    useEffect(() => {
+        if (partner) localStorage.setItem(CACHE_KEYS.PARTNER, JSON.stringify(partner));
+        else localStorage.removeItem(CACHE_KEYS.PARTNER);
+    }, [partner]);
+
+    useEffect(() => {
+        if (userMood) localStorage.setItem(CACHE_KEYS.USER_MOOD, JSON.stringify(userMood));
+        else localStorage.removeItem(CACHE_KEYS.USER_MOOD);
+    }, [userMood]);
+
+    useEffect(() => {
+        if (partnerMood) localStorage.setItem(CACHE_KEYS.PARTNER_MOOD, JSON.stringify(partnerMood));
+        else localStorage.removeItem(CACHE_KEYS.PARTNER_MOOD);
+    }, [partnerMood]);
+
 
     const fetchUserData = useCallback(async (userId: string, userEmail?: string) => {
         let { data: profile, error } = await supabase
@@ -114,6 +169,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                     setPartnerMood(toMoodLog(pMood));
                 }
+            } else {
+                // IMPORTANT: If partner removed or not found, clear state
+                setPartner(null);
+                setPartnerMood(null);
             }
         }
     }, [supabase]);
@@ -125,7 +184,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [supabase, fetchUserData]);
 
-
     useEffect(() => {
         const initAuth = async () => {
             const { data } = await supabase.auth.getSession();
@@ -133,7 +191,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(currentSession);
 
             if (currentSession?.user) {
+                // If we already have a user from cache, we don't set loading to true
+                // We just fetch in the background to update
+                if (!user) setLoading(true);
                 await fetchUserData(currentSession.user.id, currentSession.user.email);
+            } else {
+                // No session, clear everything
+                setUser(null);
+                setPartner(null);
+                setUserMood(null);
+                setPartnerMood(null);
+                localStorage.clear(); // Clear cache on logout/no session
             }
             setLoading(false);
         };
@@ -150,13 +218,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setPartner(null);
                     setUserMood(null);
                     setPartnerMood(null);
+                    localStorage.clear();
                 }
                 setLoading(false);
             }
         );
 
         return () => subscription.unsubscribe();
-    }, [fetchUserData, supabase.auth]);
+    }, [fetchUserData, supabase.auth]); // Removing user dependency to avoid loops, relying on init logic
 
     // Realtime partner mood updates
     useEffect(() => {
@@ -183,7 +252,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => {
             supabase.removeChannel(channel);
         };
-
     }, [partner?.id, supabase]);
 
     // Realtime user profile updates (e.g. when linked by partner)
@@ -233,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPartner(null);
         setUserMood(null);
         setPartnerMood(null);
+        localStorage.clear();
     };
 
     const updateMood = async (updates: Partial<MoodLog>) => {
@@ -276,7 +345,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(toUser(data));
         }
     };
-
 
     return (
         <AuthContext.Provider
