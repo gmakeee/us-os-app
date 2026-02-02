@@ -7,7 +7,7 @@ import { PartnerVibe } from '@/components/vibe/partner-vibe';
 import { BottomNav } from '@/components/ui/bottom-nav';
 import { useState, useEffect } from 'react';
 import { MoodLog, FamilyRequest } from '@/lib/types';
-import { Settings, Zap, Heart, PauseCircle, X, Clock, MessageCircle, Sparkles } from 'lucide-react';
+import { Settings, Zap, Heart, PauseCircle, X, Clock, MessageCircle, Sparkles, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase/client';
 
