@@ -182,3 +182,11 @@ export const DATE_TAGS = {
     home: { emoji: '🏠', label: 'At Home' },
     romantic: { emoji: '💕', label: 'Romantic' },
 } as const;
+
+export interface FamilyRequest {
+    id: string;
+    family_id: string;
+    user_id: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
+}
