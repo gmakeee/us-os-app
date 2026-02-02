@@ -514,6 +514,29 @@ export default function DashboardPage() {
                 </section>
             )}
 
+            {/* Timeout Section */}
+            <section className="mb-24">
+                <div
+                    onClick={() => setShowTimeout(true)}
+                    className="card bg-blue-50 border-2 border-blue-100 cursor-pointer active:scale-95 transition-transform"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md">
+                            <PauseCircle className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-blue-900">Need a Timeout?</h3>
+                            <p className="text-xs text-blue-600">
+                                Send a request to pause and cool down
+                            </p>
+                        </div>
+                        <div className="text-blue-400">
+                            <ArrowRight className="w-5 h-5" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Timeout Modal (Sender) */}
             {showTimeout && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={() => setShowTimeout(false)}>
@@ -633,7 +656,7 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            <BottomNav onTimeout={() => setShowTimeout(true)} />
+            <BottomNav />
         </div>
     );
 }
