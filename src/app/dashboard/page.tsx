@@ -123,16 +123,18 @@ export default function DashboardPage() {
             if (findError || !family) throw new Error('Invalid invite code');
 
             // Send request
-            const { error: reqError } = await supabase
+            const { data: newRequest, error: reqError } = await supabase
                 .from('family_requests')
                 .insert({
                     family_id: family.id,
                     user_id: user.id
-                });
+                })
+                .select()
+                .single();
 
             if (reqError) throw reqError;
 
-            setSentRequest(true);
+            setSentRequest(newRequest as FamilyRequest);
             setPartnerCode('');
         } catch (err: any) {
             setError(err.message || 'Failed to send request');
