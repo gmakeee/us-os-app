@@ -86,7 +86,7 @@ export default function DashboardPage() {
                     schema: 'public',
                     table: 'family_requests'
                 },
-                (payload) => {
+                (payload: any) => {
                     // Refresh requests on any change
                     loadIncomingRequests();
                     checkSentRequests();
